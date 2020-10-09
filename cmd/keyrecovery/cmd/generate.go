@@ -35,7 +35,12 @@ var generateCmd = &cobra.Command{
 			return err
 		}
 
-		sigs, err := mode.Generate(curveID, sigID)
+		conf, err := recovery.NewConfig(curveID, sigID, mode)
+		if err != nil {
+			return err
+		}
+
+		sigs, err := conf.Generate()
 		if err != nil {
 			return err
 		}

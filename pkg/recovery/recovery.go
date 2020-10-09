@@ -3,7 +3,6 @@ package recovery
 import (
 	"bufio"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -25,10 +24,20 @@ func NewRecoveryMode(mode string) (RecoveryMode, error) {
 	}
 }
 
+func (m RecoveryMode) Strategy(curveID CurveIdentifier, sigID SignatureIdentifier) (Strategy, error) {
+	switch m {
+	case Recovery_NonceReuse:
+		return &NonceReuseStrategy{curveID.Curve(), sigID}, nil
+
+	default:
+		return nil, fmt.Errorf("strategy not implemented")
+	}
+}
+
 type Config struct {
-	curve elliptic.Curve
-	sigID SignatureIdentifier
-	mode  RecoveryMode
+	curveID CurveIdentifier
+	sigID   SignatureIdentifier
+	mode    RecoveryMode
 }
 
 func NewConfig(curveID CurveIdentifier, sigID SignatureIdentifier, mode RecoveryMode) (*Config, error) {
@@ -37,9 +46,9 @@ func NewConfig(curveID CurveIdentifier, sigID SignatureIdentifier, mode Recovery
 	}
 
 	return &Config{
-		curve: curveID.Curve(),
-		sigID: sigID,
-		mode:  mode,
+		curveID: curveID,
+		sigID:   sigID,
+		mode:    mode,
 	}, nil
 }
 
@@ -63,7 +72,7 @@ func (c *Config) RecoverFromReader(r io.Reader, format string) (*ecdsa.PrivateKe
 			return nil, err
 		}
 
-		sig, err := SignatureFromBytes(bytes, c.curve, format)
+		sig, err := SignatureFromBytes(bytes, c.curveID.Curve(), format)
 		if err != nil {
 			return nil, err
 		}
@@ -79,11 +88,24 @@ func (c *Config) RecoverFromReader(r io.Reader, format string) (*ecdsa.PrivateKe
 }
 
 func (c *Config) Recover(signatures []*Signature) (*ecdsa.PrivateKey, error) {
-	switch c.mode {
-	case Recovery_NonceReuse:
-		return recoverNonceReuse(c.curve, c.sigID, signatures)
-
-	default:
-		return nil, fmt.Errorf("recovery for %s not implemented", c.mode)
+	strat, err := c.mode.Strategy(c.curveID, c.sigID)
+	if err != nil {
+		return nil, err
 	}
+
+	return strat.Recover(signatures)
+}
+
+func (c *Config) Generate() ([]*Signature, error) {
+	strat, err := c.mode.Strategy(c.curveID, c.sigID)
+	if err != nil {
+		return nil, err
+	}
+
+	return strat.Generate()
+}
+
+type Strategy interface {
+	Generate() ([]*Signature, error)
+	Recover(signatures []*Signature) (*ecdsa.PrivateKey, error)
 }

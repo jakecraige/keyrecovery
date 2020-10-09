@@ -9,21 +9,27 @@ import (
 	"math/big"
 )
 
-func recoverNonceReuse(curve elliptic.Curve, sigID SignatureIdentifier, signatures []*Signature) (*ecdsa.PrivateKey, error) {
+type NonceReuseStrategy struct {
+	curve elliptic.Curve
+	sigID SignatureIdentifier
+}
+
+func (s *NonceReuseStrategy) Recover(signatures []*Signature) (*ecdsa.PrivateKey, error) {
 	if len(signatures) < 2 {
 		return nil, fmt.Errorf("must have at least two signatures for nonce reuse")
 	}
+	curve := s.curve
 
-	switch sigID {
+	switch s.sigID {
 	case Sig_ECDSA_SHA256, Sig_ECDSA_SHA512, Sig_ECDSA_KECCAK256:
 		byteLen := byteLen(curve)
 		n := curve.Params().N
 
 		sig1, sig2 := signatures[0], signatures[1]
-		z1 := new(big.Int).SetBytes(hashBytes(sigID.Hash(), sig1.Msg))
+		z1 := new(big.Int).SetBytes(hashBytes(s.sigID.Hash(), sig1.Msg))
 		r1 := new(big.Int).SetBytes(sig1.Sig[:byteLen])
 		s1 := new(big.Int).SetBytes(sig1.Sig[byteLen:])
-		z2 := new(big.Int).SetBytes(hashBytes(sigID.Hash(), sig2.Msg))
+		z2 := new(big.Int).SetBytes(hashBytes(s.sigID.Hash(), sig2.Msg))
 		r2 := new(big.Int).SetBytes(sig2.Sig[:byteLen])
 		s2 := new(big.Int).SetBytes(sig2.Sig[byteLen:])
 
@@ -61,16 +67,16 @@ func recoverNonceReuse(curve elliptic.Curve, sigID SignatureIdentifier, signatur
 		return priv, nil
 
 	default:
-		return nil, fmt.Errorf("nonce reuse recovery for %s not implemented", sigID)
+		return nil, fmt.Errorf("nonce reuse recovery for %s not implemented", s.sigID)
 	}
 }
 
-func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([]*Signature, error) {
-	switch sigID {
+func (s *NonceReuseStrategy) Generate() ([]*Signature, error) {
+	switch s.sigID {
 	case Sig_ECDSA_SHA256, Sig_ECDSA_SHA512, Sig_ECDSA_KECCAK256:
-		byteLen := byteLen(curve)
+		byteLen := byteLen(s.curve)
 
-		key, err := ecdsa.GenerateKey(curve, rand.Reader)
+		key, err := ecdsa.GenerateKey(s.curve, rand.Reader)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +84,7 @@ func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([
 
 		nonce := big.NewInt(1337)
 		m1 := []byte("example nonce-reuse sig #1")
-		r1, s1, err := ecdsaSign(key, nonce, curve, hashBytes(sigID.Hash(), m1))
+		r1, s1, err := ecdsaSign(key, nonce, s.curve, hashBytes(s.sigID.Hash(), m1))
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +94,7 @@ func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([
 		copy(sig1[byteLen:], leftPad(s1.Bytes(), byteLen))
 
 		m2 := []byte("example nonce-reuse sig #2")
-		r2, s2, err := ecdsaSign(key, nonce, curve, hashBytes(sigID.Hash(), m2))
+		r2, s2, err := ecdsaSign(key, nonce, s.curve, hashBytes(s.sigID.Hash(), m2))
 		if err != nil {
 			return nil, err
 		}

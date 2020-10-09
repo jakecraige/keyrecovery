@@ -27,15 +27,15 @@ func TestGenerateAndRecover(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s | %s | %s", tt.curveID, tt.sigID, tt.mode), func(t *testing.T) {
-			sigs, err := tt.mode.Generate(tt.curveID, tt.sigID)
-			if err != nil {
-				t.Errorf("generating sigs: %v", err)
-				return
-			}
-
 			conf, err := recovery.NewConfig(tt.curveID, tt.sigID, tt.mode)
 			if err != nil {
 				t.Errorf("initializing config: %v", err)
+				return
+			}
+
+			sigs, err := conf.Generate()
+			if err != nil {
+				t.Errorf("generating sigs: %v", err)
 				return
 			}
 
