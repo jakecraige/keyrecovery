@@ -9,10 +9,9 @@ import (
 )
 
 /*
-* This is a copy of the stdlib implementation but slightly modified so that we can force it to reuse
-* a nonce. The stdlib includes the message as part of the strategy for deriving the nonce so it
-* ensure that even if the same randomness comes from the io.Reader it will not be a reuse. Great for
-* the stdlib, bad for us.
+* This is a copy of the stdlib implementation but modified so that we provide a nonce directly instead
+* of a csprng, which is necessary to implement the insecure signatures. The stdlib does not provide
+* any direct way to do this and which is great for safety, but not for us.
  */
 
 // A invertible implements fast inverse mod Curve.Params().N
@@ -78,20 +77,14 @@ var errZeroParam = errors.New("zero parameter")
 // private key's curve order, the hash will be truncated to that length. It
 // returns the signature as a pair of integers. The security of the private key
 // depends on the entropy of rand.
-func ecdsaSign(priv *ecdsa.PrivateKey, csprng io.Reader, c elliptic.Curve, hash []byte) (r, s *big.Int, err error) {
+func ecdsaSign(priv *ecdsa.PrivateKey, k *big.Int, c elliptic.Curve, hash []byte) (r, s *big.Int, err error) {
 	N := c.Params().N
 	if N.Sign() == 0 {
 		return nil, nil, errZeroParam
 	}
-	var k, kInv *big.Int
+	var kInv *big.Int
 	for {
 		for {
-			k, err = randFieldElement(c, csprng)
-			if err != nil {
-				r = nil
-				return
-			}
-
 			if in, ok := priv.Curve.(invertible); ok {
 				kInv = in.Inverse(k)
 			} else {

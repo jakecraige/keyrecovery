@@ -6,7 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"math/big"
 )
 
@@ -77,9 +76,9 @@ func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([
 		}
 		pub := serializePub(&key.PublicKey, byteLen)
 
-		fixedReader := &staticDataReader{[]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")}
+		nonce := big.NewInt(1337)
 		m1 := []byte("example nonce-reuse sig #1")
-		r1, s1, err := ecdsaSign(key, fixedReader, curve, hashBytes(sigID.Hash(), m1))
+		r1, s1, err := ecdsaSign(key, nonce, curve, hashBytes(sigID.Hash(), m1))
 		if err != nil {
 			return nil, err
 		}
@@ -88,9 +87,8 @@ func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([
 		copy(sig1, leftPad(r1.Bytes(), byteLen))
 		copy(sig1[byteLen:], leftPad(s1.Bytes(), byteLen))
 
-		fixedReader = &staticDataReader{[]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")}
 		m2 := []byte("example nonce-reuse sig #2")
-		r2, s2, err := ecdsaSign(key, fixedReader, curve, hashBytes(sigID.Hash(), m2))
+		r2, s2, err := ecdsaSign(key, nonce, curve, hashBytes(sigID.Hash(), m2))
 		if err != nil {
 			return nil, err
 		}
@@ -108,18 +106,4 @@ func genNonceReuseSignatures(curve elliptic.Curve, sigID SignatureIdentifier) ([
 	default:
 		return nil, fmt.Errorf("gen nonce reuse not supported for sig type")
 	}
-}
-
-type staticDataReader struct {
-	data []byte
-}
-
-func (r *staticDataReader) Read(p []byte) (int, error) {
-	if len(p) > len(r.data) {
-		return 0, io.EOF
-	}
-
-	copy(p, r.data[:len(p)])
-	r.data = r.data[len(p):]
-	return len(p), nil
 }
