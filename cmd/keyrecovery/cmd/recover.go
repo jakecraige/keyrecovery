@@ -45,7 +45,7 @@ var recoverCmd = &cobra.Command{
 			return err
 		}
 
-		conf, err := recovery.NewConfig(curveID, sigID, mode)
+		conf, err := recovery.New(curveID, sigID, mode)
 		if err != nil {
 			return err
 		}

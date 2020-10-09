@@ -12,13 +12,16 @@ import (
 type RecoveryMode string
 
 const (
-	Recovery_NonceReuse RecoveryMode = "nonce-reuse"
+	Recovery_NonceReuse      RecoveryMode = "nonce-reuse"
+	Recovery_NonceBiasPrefix RecoveryMode = "nonce-bias-prefix"
 )
 
 func NewRecoveryMode(mode string) (RecoveryMode, error) {
 	switch mode {
 	case string(Recovery_NonceReuse):
 		return Recovery_NonceReuse, nil
+	case string(Recovery_NonceBiasPrefix):
+		return Recovery_NonceBiasPrefix, nil
 	default:
 		return "", fmt.Errorf("unsupported recovery mode: %s", mode)
 	}
@@ -27,7 +30,22 @@ func NewRecoveryMode(mode string) (RecoveryMode, error) {
 func (m RecoveryMode) Strategy(curveID CurveIdentifier, sigID SignatureIdentifier) (Strategy, error) {
 	switch m {
 	case Recovery_NonceReuse:
-		return &NonceReuseStrategy{curveID.Curve(), sigID}, nil
+		return &NonceReuseStrategy{curve: curveID.Curve(), sigID: sigID}, nil
+
+	case Recovery_NonceBiasPrefix:
+		return &NonceBiasPrefixStrategy{
+			curve: curveID.Curve(),
+			sigID: sigID,
+
+			// bitBias is the amount of bits that the nonce is biased by. Using a static value for now but
+			// this could be made configurable in the future.
+			bitBias: 80,
+
+			// numSigs defines the number of signatures to generate so that recovery from the biased nonce
+			// is possible. This is enough for down to ~30 bits of bias. This could by dynamically
+			// calculated based on the bias in the future.
+			numSigs: 10,
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("strategy not implemented")
@@ -40,7 +58,7 @@ type Config struct {
 	mode    RecoveryMode
 }
 
-func NewConfig(curveID CurveIdentifier, sigID SignatureIdentifier, mode RecoveryMode) (*Config, error) {
+func New(curveID CurveIdentifier, sigID SignatureIdentifier, mode RecoveryMode) (*Config, error) {
 	if !curveID.IsSupported(sigID) {
 		return nil, fmt.Errorf("sig %s is not supported with curve %s", sigID, curveID)
 	}

@@ -27,7 +27,7 @@ func TestGenerateAndRecover(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s | %s | %s", tt.curveID, tt.sigID, tt.mode), func(t *testing.T) {
-			conf, err := recovery.NewConfig(tt.curveID, tt.sigID, tt.mode)
+			conf, err := recovery.New(tt.curveID, tt.sigID, tt.mode)
 			if err != nil {
 				t.Errorf("initializing config: %v", err)
 				return
